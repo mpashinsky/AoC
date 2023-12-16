@@ -271,35 +271,100 @@ humidity-to-location map:
 60 56 37
 56 93 4`
 
-var inputArr = input.split('\n\n').map(parse)
+var inputArr = pinput.split('\n\n').map(parse)
 //console.log(inputArr)
 
-seeds = seeds.map(transformSeed)
-console.log(Math.min(...seeds))
+var ranges = getRanges(pseeds)
 
-function transformSeed(seed) {
-    var res = seed
-    inputArr.forEach(dest => {
-        res = transformSeedDest(dest, res)
-    })
+var resSeeds = ranges
+for(let i=0; i<inputArr.length;i++) {
 
-    return res;
+    //Put all ranges into each map
+    resSeeds = transformSeeds(inputArr[i], resSeeds)
+
+}
+console.log(Math.min(...resSeeds.map(i=>i.start)))
+
+function getRanges(seeds) {
+
+    var resArr = []
+    for(let i=0;i<seeds.length-1;i=i+2) {
+
+        resArr.push({start:seeds[i], end:seeds[i]+seeds[i+1]-1})
+    }
+    return resArr
+}
+
+function transformSeeds(destMapArr, seeds) {
+
+    var res = seeds.map(seed =>
+        transformSeedDest(destMapArr, seed)
+    )
+    return res.reduce((a,b)=>a.concat(...b),[])
 }
 
 function transformSeedDest(destArr, seed) {
 
-    var res = seed
-    for(let i=0;i<destArr.length;i++) {
+    //Only one range - should get multiple
+    //If range converted - put into res
+    var remains = [seed]
+    var res = []
+    for (let i = 0; i < destArr.length; i++) {
 
         var dest = destArr[i]
-        if(seed >= dest.src && seed <= (dest.src + dest.range)) {
 
-            res = seed - dest.src + dest.dest
-            return res
-        }
-
+        let subRanges = remains.map(i=>getSubRanges(dest,i))
+        remains = subRanges.map((i=>i.remains)).reduce((a,b)=>a.concat(b),[])
+        res = res.concat(subRanges.map((i=>i.res)).reduce((a,b)=>a.concat(b),[]))
     }
-    return res
+    return res.concat(remains)
+}
+
+function getSubRanges(map, seed) {
+
+    //not included
+    if(seed.end < map.start || map.end < seed.start) {
+        return {remains:[seed], res:[]}
+    }
+    //inner
+    if(map.start <= seed.start && seed.end <= map.end) {
+        return {remains:[], res:[{start: seed.start-map.start+map.dest, end: seed.end-map.start+map.dest }]}
+    }
+    //outer
+    if(map.start >= seed.start && seed.end >= map.end) {
+        let res = [{start: map.dest, end: map.end-map.start+map.dest }]
+        let remains = []
+        if(map.start !== seed.start) {
+            remains.push({start:seed.start,end:map.start-1})
+        }
+        if(map.end !== seed.end) {
+            remains.push({start:map.end+1,end:seed.end})
+        }
+        return ({remains: remains, res: res})
+    }
+    //left
+    if(map.start >= seed.start && seed.end <= map.end) {
+        let res = [{start: map.dest, end: seed.end-map.start+map.dest }]
+        let remains = []
+        if(map.start !== seed.start) {
+            remains.push({start:seed.start,end:map.start-1})
+        }
+        return ({remains: remains, res: res})
+    }
+    //right
+    if(map.start <= seed.start && seed.end >= map.end) {
+        let res = [{start: seed.start-map.start+map.dest, end: seed.end-map.start+map.dest }]
+        let remains = []
+        if(map.end !== seed.end) {
+            remains.push({start:map.end+1,end:seed.end})
+        }
+        return ({remains: remains, res: res})
+    }
+    return seed
+}
+
+function getEnd(range) {
+    return range.start+range.length
 }
 
 function parse(str) {
@@ -312,8 +377,8 @@ function parseDest(destItem) {
     var destArr = destItem.split(' ').map(Number)
     return {
         dest: destArr[0],
-        src: destArr[1],
-        range: destArr[2]
+        start: destArr[1],
+        end: destArr[1]+destArr[2]-1
     }
 }
 
